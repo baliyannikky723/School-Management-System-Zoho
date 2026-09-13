@@ -1,0 +1,63 @@
+/**
+ * Automation Deluge Function: validateAttendanceRecord
+ * Category: Automation
+ * Return Type: string
+ * Argument: attendanceId (int)
+ * 
+ * Triggered on: Attendance (Create / Edit)
+ * Purpose:
+ * 1. Validates mandatory relationships (Student, Academic Year, Date).
+ * 2. Checks and flags duplicate attendance on the same date for the student.
+ */
+
+string automation.validateAttendanceRecord(int attendanceId)
+{
+    if(attendanceId == null || attendanceId == 0)
+    {
+        return "Invalid Attendance ID";
+    }
+    
+    // 1. Fetch Attendance Record
+    attRecord = zoho.crm.getRecordById("Attendance", attendanceId);
+    if(attRecord == null || attRecord.isEmpty())
+    {
+        return "Attendance record not found";
+    }
+    
+    studentLookup = attRecord.get("Student");
+    yearLookup = attRecord.get("Academic_Year");
+    attDate = attRecord.get("Date");
+    
+    if(studentLookup == null || yearLookup == null || attDate == null)
+    {
+        return "ERROR: Student, Academic Year, and Date are mandatory";
+    }
+    
+    studentId = studentLookup.get("id").toLong();
+    yearId = yearLookup.get("id").toLong();
+    
+    // 2. Duplicate check (Student + Date)
+    searchCriteria = "(Student:equals:" + studentId + ")";
+    existingRecords = zoho.crm.searchRecords("Attendance", searchCriteria);
+    dupCount = 0;
+    if(existingRecords != null && existingRecords.size() > 0)
+    {
+        for each rec in existingRecords
+        {
+            recId = rec.get("id").toLong();
+            recDate = rec.get("Date");
+            if(recId != attendanceId && recDate == attDate)
+            {
+                dupCount = dupCount + 1;
+            }
+        }
+    }
+    
+    if(dupCount > 0)
+    {
+        info "Duplicate Attendance detected for Student ID: " + studentId + " on " + attDate;
+        return "WARNING: Duplicate attendance detected for this date.";
+    }
+    
+    return "SUCCESS: Attendance record verified.";
+}

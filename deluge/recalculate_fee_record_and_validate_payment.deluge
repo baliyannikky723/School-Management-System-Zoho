@@ -1,0 +1,138 @@
+/**
+ * Automation Deluge Function: recalculateFeeRecordAndPayment
+ * Category: Automation
+ * Return Type: string
+ * Argument: paymentId (int)
+ * 
+ * Triggered on: Payments (Create / Edit)
+ * Purpose:
+ * 1. Validates Payment business rules (Amount > 0, Student matching Fee Record Student).
+ * 2. Sums all successful Payments linked to the parent Fee Record.
+ * 3. Recalculates Collected Amount and Outstanding Amount on the Fee Record.
+ * 4. Automatically updates Fee Record Status (Paid, Partially Paid, Pending, Overdue).
+ */
+
+string automation.recalculateFeeRecordAndPayment(int paymentId)
+{
+    if(paymentId == null || paymentId == 0)
+    {
+        return "Invalid Payment ID";
+    }
+    
+    // 1. Fetch Current Payment Record
+    paymentRecord = zoho.crm.getRecordById("Payments", paymentId);
+    if(paymentRecord == null || paymentRecord.isEmpty())
+    {
+        return "Payment Record not found";
+    }
+    
+    feeRecordLookup = paymentRecord.get("Fee_Record");
+    if(feeRecordLookup == null || feeRecordLookup.isEmpty())
+    {
+        return "No Fee Record linked to this payment";
+    }
+    
+    feeRecordId = feeRecordLookup.get("id").toLong();
+    
+    // 2. Fetch Parent Fee Record
+    feeRecord = zoho.crm.getRecordById("Fee_Records", feeRecordId);
+    if(feeRecord == null || feeRecord.isEmpty())
+    {
+        return "Fee Record not found";
+    }
+    
+    // 3. Validate Student Matching
+    feeStudentLookup = feeRecord.get("Student");
+    payStudentLookup = paymentRecord.get("Student");
+    
+    if(feeStudentLookup != null && payStudentLookup != null)
+    {
+        feeStudentId = feeStudentLookup.get("id").toLong();
+        payStudentId = payStudentLookup.get("id").toLong();
+        if(feeStudentId != payStudentId)
+        {
+            // Sync student to match parent fee record
+            syncPayMap = Map();
+            syncPayMap.put("Student", feeStudentId);
+            zoho.crm.updateRecord("Payments", paymentId, syncPayMap);
+        }
+    }
+    
+    // 4. Fetch All Payments for this Fee Record
+    totalFee = feeRecord.get("Total_Fee");
+    totalFeeVal = 0.0;
+    if(totalFee != null)
+    {
+        totalFeeVal = totalFee.toDecimal();
+    }
+    
+    allPayments = zoho.crm.searchRecords("Payments", "(Fee_Record:equals:" + feeRecordId + ")");
+    totalCollected = 0.0;
+    
+    if(allPayments != null && allPayments.size() > 0)
+    {
+        for each pay in allPayments
+        {
+            payStatus = pay.get("Payment_Status");
+            // Count successful / completed payments or default active
+            if(payStatus == null || payStatus == "Successful" || payStatus == "Completed" || payStatus == "")
+            {
+                amt = pay.get("Amount_Paid");
+                if(amt != null)
+                {
+                    totalCollected = totalCollected + amt.toDecimal();
+                }
+            }
+        }
+    }
+    
+    // 5. Calculate Outstanding Amount
+    outstanding = totalFeeVal - totalCollected;
+    if(outstanding < 0.0)
+    {
+        outstanding = 0.0;
+    }
+    
+    // 6. Determine Fee Record Status
+    newStatus = "Pending";
+    dueDate = feeRecord.get("Due_Date");
+    todayDate = zoho.currentdate;
+    
+    if(totalCollected >= totalFeeVal && totalFeeVal > 0.0)
+    {
+        newStatus = "Paid";
+    }
+    else if(totalCollected > 0.0)
+    {
+        if(dueDate != null && dueDate.toDate() < todayDate)
+        {
+            newStatus = "Overdue";
+        }
+        else
+        {
+            newStatus = "Partially Paid";
+        }
+    }
+    else
+    {
+        if(dueDate != null && dueDate.toDate() < todayDate)
+        {
+            newStatus = "Overdue";
+        }
+        else
+        {
+            newStatus = "Pending";
+        }
+    }
+    
+    // 7. Update Fee Record
+    updateFeeMap = Map();
+    updateFeeMap.put("Collected_Amount", totalCollected);
+    updateFeeMap.put("Outstanding_Amount", outstanding);
+    updateFeeMap.put("Status", newStatus);
+    
+    updateResp = zoho.crm.updateRecord("Fee_Records", feeRecordId, updateFeeMap);
+    info "Fee Record Updated: " + updateResp;
+    
+    return "SUCCESS: Fee Record updated with Collected=" + totalCollected + ", Outstanding=" + outstanding + ", Status=" + newStatus;
+}

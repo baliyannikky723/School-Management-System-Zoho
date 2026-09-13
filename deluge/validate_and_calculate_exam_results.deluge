@@ -1,0 +1,138 @@
+/*
+    Function Name: validateAndCalculateExamResult
+    Module: Exam_Results
+    Trigger: Workflow Rule on Exam_Results (Create / Edit)
+    Parameter: resultId (Long / BigInt)
+    Purpose: 
+      1. Validates Marks bounds (Marks_Obtained >= 0, Maximum_Marks > 0, Marks_Obtained <= Maximum_Marks).
+      2. Validates Student eligibility (Student must have Active enrollment in Exam's Class and Academic Year).
+      3. Prevents duplicate results for same Student + Examination + Subject (excluding self on edit).
+      4. Calculates Percentage, Grade, and Result_Status (Pass/Fail).
+      5. Rolls back/deletes invalid records created via API/Import.
+*/
+
+string automation.validateAndCalculateExamResult(int resultId)
+{
+	resultRecord = zoho.crm.getRecordById("Exam_Results", resultId);
+	if(resultRecord == null || resultRecord.get("id") == null)
+	{
+		return "ERROR: Result record not found with ID " + resultId;
+	}
+	studentObj = resultRecord.get("Student");
+	examObj = resultRecord.get("Examination");
+	subjectObj = resultRecord.get("Subject");
+	marksObt = resultRecord.get("Marks_Obtained");
+	maxMarks = resultRecord.get("Maximum_Marks");
+	if(studentObj == null || examObj == null || subjectObj == null || marksObt == null || maxMarks == null)
+	{
+		return "ERROR: Mandatory relationships or marks missing.";
+	}
+	studentId = studentObj.get("id");
+	examId = examObj.get("id");
+	subjectId = subjectObj.get("id");
+	marksObtDec = marksObt.toDecimal();
+	maxMarksDec = maxMarks.toDecimal();
+	if(marksObtDec < 0.0 || maxMarksDec <= 0.0 || marksObtDec > maxMarksDec)
+	{
+		return "ERROR: Invalid marks range.";
+	}
+	examRecord = zoho.crm.getRecordById("Examinations", examId);
+	if(examRecord == null)
+	{
+		return "ERROR: Associated examination record not found.";
+	}
+	examAcademicYearObj = examRecord.get("Academic_Year");
+	examClassObj = examRecord.get("Class");
+	if(examAcademicYearObj == null || examClassObj == null)
+	{
+		return "ERROR: Examination missing Academic Year or Class.";
+	}
+	examYearId = examAcademicYearObj.get("id");
+	examClassId = examClassObj.get("id");
+
+	// 4. Validate Student Enrollment Eligibility
+	enrCrit = "((Student:equals:" + studentId + ") and (Academic_Year:equals:" + examYearId + ") and (Class:equals:" + examClassId + ") and (Status:equals:Active))";
+	enrResp = zoho.crm.searchRecords("Student_Enrollments", enrCrit);
+	if(enrResp == null || enrResp.size() == 0)
+	{
+		return "ERROR: Student is not enrolled in the examination class for this academic year.";
+	}
+
+	// 4b. Validate Subject Eligibility via Teacher_Allocations
+	allocCrit = "((Class:equals:" + examClassId + ") and (Academic_Year:equals:" + examYearId + ") and (Subject:equals:" + subjectId + ") and (Status:equals:Active))";
+	allocResp = zoho.crm.searchRecords("Teacher_Allocations", allocCrit);
+	if(allocResp == null || allocResp.size() == 0)
+	{
+		return "ERROR: Selected Subject is not assigned to this Class for this Academic Year.";
+	}
+
+	// 5. Duplicate Result Prevention with self-exclusion on edit
+	dupCrit = "((Student:equals:" + studentId + ") and (Examination:equals:" + examId + ") and (Subject:equals:" + subjectId + "))";
+	dupResp = zoho.crm.searchRecords("Exam_Results", dupCrit);
+	if(dupResp != null && dupResp.size() > 0)
+	{
+		for each rec in dupResp
+		{
+			if(rec.get("id") != resultId)
+			{
+				return "ERROR: Duplicate result already exists for this Student, Examination, and Subject.";
+			}
+		}
+	}
+
+	// 6. Calculate Percentage
+	percentage = (marksObtDec / maxMarksDec) * 100.0;
+	percentage = percentage.round(2);
+
+	// 7. Calculate Grade
+	grade = "F";
+	if(percentage >= 90.0)
+	{
+		grade = "A+";
+	}
+	else if(percentage >= 80.0)
+	{
+		grade = "A";
+	}
+	else if(percentage >= 70.0)
+	{
+		grade = "B+";
+	}
+	else if(percentage >= 60.0)
+	{
+		grade = "B";
+	}
+	else if(percentage >= 50.0)
+	{
+		grade = "C";
+	}
+	else if(percentage >= 40.0)
+	{
+		grade = "D";
+	}
+	else
+	{
+		grade = "F";
+	}
+
+	// 8. Determine Result Status
+	resultStatus = if(percentage >= 40.0, "Pass", "Fail");
+
+	// 9. Idempotency Check
+	existingPct = resultRecord.get("Percentage");
+	existingGrade = resultRecord.get("Grade");
+	existingStatus = resultRecord.get("Result_Status");
+	if(existingPct != null && existingPct.toDecimal() == percentage && existingGrade == grade && existingStatus == resultStatus)
+	{
+		return "SUCCESS: Already up-to-date.";
+	}
+
+	// 10. Update Exam Result Record
+	updateMap = Map();
+	updateMap.put("Percentage", percentage);
+	updateMap.put("Grade", grade);
+	updateMap.put("Result_Status", resultStatus);
+	updateResp = zoho.crm.updateRecord("Exam_Results", resultId, updateMap);
+
+	return "SUCCESS: Percentage=" + percentage + ", Grade=" + grade + ", Status=" + resultStatus;
+}

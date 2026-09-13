@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Admission Enquiry Form</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-hover: #172554;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #cbd5e1;
+            --focus-ring: #3b82f6;
+            --error-color: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px 16px;
+        }
+
+        .form-container {
+            background: var(--card-bg);
+            max-width: 680px;
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+            padding: 36px 32px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .form-header h2 {
+            font-size: 24px;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .form-header p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #334155;
+        }
+
+        .form-group label .required {
+            color: var(--error-color);
+            margin-left: 2px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            color: var(--text-main);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: var(--focus-ring);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .section-title {
+            grid-column: span 2;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary);
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-top: 10px;
+        }
+
+        .submit-btn {
+            background-color: var(--primary);
+            color: #ffffff;
+            border: none;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s ease;
+            margin-top: 12px;
+        }
+
+        .submit-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .full-width, .section-title {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="form-container">
+    <div class="form-header">
+        <h2>School Admission Enquiry</h2>
+        <p>Please fill out the form below. Our admissions team will get in touch with you shortly.</p>
+    </div>
+
+    <!-- Zoho CRM Webform integration endpoint -->
+    <form action='https://crm.zoho.com/crm/WebToLeadForm' name='WebToLeads' method='POST' accept-charset='UTF-8'>
+        
+        <!-- Standard Zoho CRM Form Metadata -->
+        <input type='hidden' name='xnQsjsdp' value='ZOHO_ORG_KEY_PLACEHOLDER'/>
+        <input type='hidden' name='xmIwtLD' value='ZOHO_FORM_KEY_PLACEHOLDER'/>
+        <input type='hidden' name='actionType' value='TGVhZHM='/>
+        <input type='hidden' name='returnURL' value='https://yourschool.edu/thank-you'/>
+        
+        <!-- Default Internal System Attributes (Hidden from Public View) -->
+        <input type='hidden' name='Admission_Status' value='New'/>
+        <input type='hidden' name='Lead_Source' value='Webform'/>
+
+        <div class="form-grid">
+            <!-- Student Information Section -->
+            <div class="section-title">Student Information</div>
+
+            <div class="form-group">
+                <label for="First_Name">Student First Name <span class="required">*</span></label>
+                <input type="text" id="First_Name" name="First Name" required placeholder="e.g. Rahul" maxlength="40">
+            </div>
+
+            <div class="form-group">
+                <label for="Last_Name">Student Last Name <span class="required">*</span></label>
+                <input type="text" id="Last_Name" name="Last Name" required placeholder="e.g. Sharma" maxlength="80">
+            </div>
+
+            <div class="form-group">
+                <label for="Student_DOB">Student Date of Birth <span class="required">*</span></label>
+                <input type="date" id="Student_DOB" name="Student DOB" required>
+            </div>
+
+            <div class="form-group">
+                <label for="Gender">Gender <span class="required">*</span></label>
+                <select id="Gender" name="Gender" required>
+                    <option value="" disabled selected>Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="Admission_Class">Applying for Class <span class="required">*</span></label>
+                <select id="Admission_Class" name="Admission Class" required>
+                    <option value="" disabled selected>Select Class</option>
+                    <option value="Class 1">Class 1</option>
+                    <option value="Class 2">Class 2</option>
+                    <option value="Class 3">Class 3</option>
+                    <option value="Class 4">Class 4</option>
+                    <option value="Class 5">Class 5</option>
+                    <option value="Class 6">Class 6</option>
+                    <option value="Class 7">Class 7</option>
+                    <option value="Class 8">Class 8</option>
+                    <option value="Class 9">Class 9</option>
+                    <option value="Class 10">Class 10</option>
+                    <option value="Class 11">Class 11</option>
+                    <option value="Class 12">Class 12</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="Admission_Academic_Year">Academic Year <span class="required">*</span></label>
+                <select id="Admission_Academic_Year" name="Admission Academic Year" required>
+                    <option value="" disabled selected>Select Academic Year</option>
+                    <option value="2026-2027">2026-2027</option>
+                    <option value="2027-2028">2027-2028</option>
+                </select>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="Previous_School">Previous School Attended (If Any)</label>
+                <input type="text" id="Previous_School" name="Previous School" placeholder="e.g. St. Xavier's School">
+            </div>
+
+            <!-- Parent/Guardian Information Section -->
+            <div class="section-title">Parent / Guardian Information</div>
+
+            <div class="form-group full-width">
+                <label for="Parent_Guardian_Name">Parent / Guardian Full Name <span class="required">*</span></label>
+                <input type="text" id="Parent_Guardian_Name" name="Parent Guardian Name" required placeholder="e.g. Rajesh Sharma">
+            </div>
+
+            <div class="form-group">
+                <label for="Parent_Guardian_Phone">Parent / Guardian Phone <span class="required">*</span></label>
+                <input type="tel" id="Parent_Guardian_Phone" name="Parent Guardian Phone" required placeholder="e.g. +91 9876543210">
+            </div>
+
+            <div class="form-group">
+                <label for="Email">Parent / Guardian Email</label>
+                <input type="email" id="Email" name="Email" placeholder="e.g. rajesh.sharma@example.com">
+            </div>
+
+            <div class="form-group full-width">
+                <button type="submit" class="submit-btn">Submit Admission Enquiry</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

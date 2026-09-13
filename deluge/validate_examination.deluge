@@ -1,0 +1,55 @@
+/*
+    Function Name: validateExamination
+    Module: Examinations
+    Trigger: Workflow Rule on Examinations (Create / Edit)
+    Parameter: examId (Long / BigInt)
+    Purpose: Validates that Examination Start Date and End Date:
+      1. End Date is greater than or equal to Start Date.
+      2. Start Date and End Date fall within the selected Academic Year's date range.
+*/
+
+string automation.validateExamination(int examId)
+{
+    examRecord = zoho.crm.getRecordById("Examinations", examId);
+    if(examRecord == null || examRecord.get("id") == null)
+    {
+        return "ERROR: Examination record not found with ID " + examId;
+    }
+
+    startDateStr = examRecord.get("Start_Date");
+    endDateStr = examRecord.get("End_Date");
+    academicYearObj = examRecord.get("Academic_Year");
+
+    if(startDateStr == null || endDateStr == null || academicYearObj == null)
+    {
+        return "ERROR: Start Date, End Date, and Academic Year are mandatory.";
+    }
+
+    startDate = startDateStr.toDate();
+    endDate = endDateStr.toDate();
+
+    // 1. Date Range Order Check
+    if(endDate < startDate)
+    {
+        return "ERROR: Examination End Date cannot be earlier than Start Date.";
+    }
+
+    // 2. Academic Year Bounds Check
+    academicYearRecord = zoho.crm.getRecordById("Academic_Years", academicYearObj.get("id"));
+    if(academicYearRecord != null)
+    {
+        yearStartStr = academicYearRecord.get("Start_Date");
+        yearEndStr = academicYearRecord.get("End_Date");
+        if(yearStartStr != null && yearEndStr != null)
+        {
+            yearStart = yearStartStr.toDate();
+            yearEnd = yearEndStr.toDate();
+            if(startDate < yearStart || endDate > yearEnd)
+            {
+                return "ERROR: Examination dates must fall within the Academic Year (" + yearStartStr + " to " + yearEndStr + ").";
+            }
+        }
+    }
+
+    return "SUCCESS";
+}

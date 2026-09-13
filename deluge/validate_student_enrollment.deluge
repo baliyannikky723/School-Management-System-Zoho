@@ -1,0 +1,97 @@
+/*
+    Function Name: validateStudentEnrollment
+    Module: Student_Enrollments
+    Trigger: Workflow Rule (Create / Edit) or Custom Action
+    Parameter: enrollmentId (Long / BigInt)
+    Purpose: Enforces integrity constraints for Student Enrollments:
+      1. Validates that the Student has 'Active' status.
+      2. Validates that the selected Section belongs to the chosen Class.
+      3. Enforces that a Student can have at most ONE 'Active' enrollment per Academic Year.
+*/
+
+map validateStudentEnrollment(bigint enrollmentId)
+{
+    result = Map();
+    result.put("status", "SUCCESS");
+    result.put("message", "Enrollment validation passed successfully.");
+
+    // 1. Fetch the target Enrollment record
+    enrollmentRecord = zoho.crm.getRecordById("Student_Enrollments", enrollmentId);
+    if(enrollmentRecord == null || enrollmentRecord.get("id") == null)
+    {
+        result.put("status", "ERROR");
+        result.put("message", "Enrollment record not found with ID " + enrollmentId);
+        return result;
+    }
+
+    studentObj = enrollmentRecord.get("Student");
+    academicYearObj = enrollmentRecord.get("Academic_Year");
+    classObj = enrollmentRecord.get("Class");
+    sectionObj = enrollmentRecord.get("Section");
+    enrollmentStatus = enrollmentRecord.get("Status");
+
+    // Mandatory relationship verification
+    if(studentObj == null || academicYearObj == null || classObj == null || sectionObj == null)
+    {
+        result.put("status", "ERROR");
+        result.put("message", "Mandatory relationships (Student, Academic Year, Class, Section) must all be populated.");
+        return result;
+    }
+
+    studentId = studentObj.get("id");
+    academicYearId = academicYearObj.get("id");
+    classId = classObj.get("id");
+    sectionId = sectionObj.get("id");
+
+    // 2. Constraint Check 1: Student Status must be 'Active' for Active enrollments
+    if(enrollmentStatus == "Active")
+    {
+        studentRecord = zoho.crm.getRecordById("Students", studentId);
+        if(studentRecord != null)
+        {
+            studentStatus = studentRecord.get("Student_Status");
+            if(studentStatus != "Active")
+            {
+                result.put("status", "BLOCKED");
+                result.put("message", "Only Active students can have an Active enrollment. Current Student status is '" + studentStatus + "'.");
+                return result;
+            }
+        }
+    }
+
+    // 3. Constraint Check 2: Section must belong to the selected Class
+    sectionRecord = zoho.crm.getRecordById("Sections", sectionId);
+    if(sectionRecord != null)
+    {
+        sectionClassObj = sectionRecord.get("Class");
+        if(sectionClassObj == null || sectionClassObj.get("id") != classId)
+        {
+            result.put("status", "BLOCKED");
+            result.put("message", "Selected section does not belong to the selected class.");
+            return result;
+        }
+    }
+
+    // 4. Constraint Check 3: At most ONE Active enrollment per Student per Academic Year
+    if(enrollmentStatus == "Active")
+    {
+        // Query other active enrollments for this student and academic year
+        coqlQuery = "select id, Status from Student_Enrollments where Student = " + studentId + " and Academic_Year = " + academicYearId + " and Status = 'Active' and id != " + enrollmentId;
+        queryMap = Map();
+        queryMap.put("select_query", coqlQuery);
+        coqlResponse = zoho.crm.coql(queryMap);
+
+        if(coqlResponse != null && coqlResponse.get("data") != null)
+        {
+            dataList = coqlResponse.get("data");
+            if(dataList.size() > 0)
+            {
+                result.put("status", "BLOCKED");
+                result.put("message", "This student already has an active enrollment for this academic year.");
+                return result;
+            }
+        }
+    }
+
+    return result;
+}

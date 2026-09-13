@@ -1,0 +1,113 @@
+/*
+    Function Name: convertLeadToStudent
+    Module: Leads
+    Trigger: Workflow Rule (Admission Status == 'Confirmed')
+    Parameter: leadId (Long / BigInt)
+    Purpose: Idempotently creates a Student master record with auto-generated unique Student ID from a confirmed admission Lead.
+*/
+
+string convertLeadToStudent(bigint leadId)
+{
+    // 1. Fetch Lead Record
+    leadRecord = zoho.crm.getRecordById("Leads", leadId);
+    if(leadRecord == null || leadRecord.get("id") == null)
+    {
+        return "ERROR: Lead record not found with ID " + leadId;
+    }
+    
+    // 2. Validate Admission Status
+    admissionStatus = leadRecord.get("Admission_Status");
+    if(admissionStatus != "Confirmed")
+    {
+        return "SKIPPED: Lead Admission Status is '" + admissionStatus + "'. Expected 'Confirmed'.";
+    }
+    
+    // 3. Idempotency Check: Prevent duplicate Student creation for the same Lead
+    existingStudents = zoho.crm.searchRecords("Students", "(Source_Lead:equals:" + leadId + ")");
+    if(existingStudents != null && existingStudents.size() > 0)
+    {
+        existingStudent = existingStudents.get(0);
+        return "IDEMPOTENT_EXIT: Student already exists for this Lead. Student ID: " + existingStudent.get("Student_ID");
+    }
+    
+    // 4. Generate Unique Sequential Student ID (Format: STU-00001)
+    nextSeq = 1;
+    latestStudents = zoho.crm.getRecords("Students", 1, 1, {"sort_by":"Created_Time", "sort_order":"desc"});
+    if(latestStudents != null && latestStudents.size() > 0)
+    {
+        latestStudent = latestStudents.get(0);
+        lastStudentId = latestStudent.get("Student_ID");
+        if(lastStudentId != null && lastStudentId.startsWith("STU-"))
+        {
+            numPart = lastStudentId.subString(4);
+            if(numPart.isNumber())
+            {
+                nextSeq = numPart.toLong() + 1;
+            }
+        }
+    }
+    
+    // Format with 5-digit zero padding
+    seqStr = nextSeq.toString();
+    padCount = 5 - seqStr.length();
+    paddedSeq = "";
+    for each idx in {1, 2, 3, 4, 5}
+    {
+        if(idx <= padCount)
+        {
+            paddedSeq = paddedSeq + "0";
+        }
+    }
+    newStudentId = "STU-" + paddedSeq + seqStr;
+    
+    // 5. Map Lead Fields to Student Payload
+    studentMap = Map();
+    
+    firstName = leadRecord.get("First_Name");
+    lastName = leadRecord.get("Last_Name");
+    fullName = if(firstName != null && firstName != "", firstName + " " + lastName, lastName);
+    
+    studentMap.put("Name", lastName);
+    studentMap.put("Student_ID", newStudentId);
+    studentMap.put("First_Name", firstName);
+    studentMap.put("Last_Name", lastName);
+    studentMap.put("Full_Name", fullName);
+    studentMap.put("Date_of_Birth", leadRecord.get("Student_DOB"));
+    studentMap.put("Gender", leadRecord.get("Gender"));
+    
+    // Parent/Guardian Contact Mapping (Lead Email is mapped to Parent_Guardian_Email)
+    studentMap.put("Parent_Guardian_Name", leadRecord.get("Parent_Guardian_Name"));
+    studentMap.put("Parent_Guardian_Email", leadRecord.get("Email"));
+    studentMap.put("Parent_Guardian_Phone", leadRecord.get("Parent_Guardian_Phone"));
+    
+    // Academic & Admission Meta
+    if(leadRecord.get("Admission_Academic_Year") != null)
+    {
+        studentMap.put("Admission_Academic_Year", leadRecord.get("Admission_Academic_Year"));
+    }
+    studentMap.put("Admission_Date", zoho.currentdate.toString("yyyy-MM-dd"));
+    studentMap.put("Admission_Status", "Confirmed");
+    studentMap.put("Student_Status", "Active");
+    
+    // Source Reference for Idempotency and Traceability
+    studentMap.put("Source_Lead", leadId);
+    
+    // 6. Create Student Record
+    createResponse = zoho.crm.createRecord("Students", studentMap);
+    
+    if(createResponse != null && createResponse.get("id") != null)
+    {
+        createdStudentId = createResponse.get("id");
+        
+        // 7. Update Lead with confirmation flag
+        updateLeadMap = Map();
+        updateLeadMap.put("Student_Created", true);
+        zoho.crm.updateRecord("Leads", leadId, updateLeadMap);
+        
+        return "SUCCESS: Student created successfully. ID: " + newStudentId + " (Record ID: " + createdStudentId + ")";
+    }
+    else
+    {
+        return "ERROR: Failed to create Student record. Response: " + createResponse;
+    }
+}

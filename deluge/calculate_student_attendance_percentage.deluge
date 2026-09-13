@@ -1,0 +1,78 @@
+/*
+    Function Name: calculateStudentAttendancePercentage
+    Module: Attendance / Students
+    Trigger: Workflow Rule on Attendance (Create / Edit / Delete) or on-demand
+    Parameter: studentId (Long / BigInt), academicYearId (Long / BigInt)
+    Purpose: Computes the overall attendance percentage for a student in a specific academic year:
+             Formula: (Present + Late) / (Present + Absent + Late + Excused) * 100
+             Updates Students.Current_Attendance_Percentage
+*/
+
+map calculateStudentAttendancePercentage(bigint studentId, bigint academicYearId)
+{
+    response = Map();
+    
+    // 1. Query all attendance records for this student and academic year
+    queryStr = "select id, Attendance_Status from Attendance where Student = " + studentId + " and Academic_Year = " + academicYearId;
+    queryMap = Map();
+    queryMap.put("select_query", queryStr);
+    coqlResp = zoho.crm.coql(queryMap);
+    
+    presentCount = 0;
+    lateCount = 0;
+    absentCount = 0;
+    excusedCount = 0;
+    totalEligibleDays = 0;
+    
+    if(coqlResp != null && coqlResp.get("data") != null)
+    {
+        records = coqlResp.get("data");
+        totalEligibleDays = records.size();
+        
+        for each rec in records
+        {
+            status = rec.get("Attendance_Status");
+            if(status == "Present")
+            {
+                presentCount = presentCount + 1;
+            }
+            else if(status == "Late")
+            {
+                lateCount = lateCount + 1;
+            }
+            else if(status == "Absent")
+            {
+                absentCount = absentCount + 1;
+            }
+            else if(status == "Excused")
+            {
+                excusedCount = excusedCount + 1;
+            }
+        }
+    }
+    
+    // 2. Calculate Percentage
+    percentage = 0.0;
+    if(totalEligibleDays > 0)
+    {
+        attendedDays = presentCount + lateCount;
+        percentage = (attendedDays.toDecimal() / totalEligibleDays.toDecimal()) * 100.0;
+        percentage = percentage.round(2);
+    }
+    
+    // 3. Update the Student record's rollup field
+    updateMap = Map();
+    updateMap.put("Current_Attendance_Percentage", percentage);
+    updateResp = zoho.crm.updateRecord("Students", studentId, updateMap);
+    
+    response.put("status", "SUCCESS");
+    response.put("student_id", studentId);
+    response.put("total_days", totalEligibleDays);
+    response.put("present_count", presentCount);
+    response.put("late_count", lateCount);
+    response.put("absent_count", absentCount);
+    response.put("excused_count", excusedCount);
+    response.put("attendance_percentage", percentage);
+    
+    return response;
+}
